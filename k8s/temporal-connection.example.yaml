@@ -1,0 +1,15 @@
+# Copy to temporal-connection.yaml and set hostPort to your Temporal Cloud region.
+# API key auth requires the regional endpoint (not *.tmprl.cloud).
+# Create the secret first:
+#   kubectl create secret generic temporal-api-key -n worker-controller-demo \
+#     --from-literal=api-key=YOUR_API_KEY
+apiVersion: temporal.io/v1alpha1
+kind: TemporalConnection
+metadata:
+  name: temporal-cloud
+  namespace: worker-controller-demo
+spec:
+  hostPort: us-east-1.aws.api.temporal.io:7233
+  apiKeySecretRef:
+    name: temporal-api-key
+    key: api-key

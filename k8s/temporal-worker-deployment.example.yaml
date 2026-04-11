@@ -1,0 +1,55 @@
+# Copy to temporal-worker-deployment.yaml (v-a). For v-b use temporal-worker-deployment.v-b.yaml in repo.
+# temporalNamespace must match your Temporal Cloud namespace name.
+apiVersion: temporal.io/v1alpha1
+kind: TemporalWorkerDeployment
+metadata:
+  # Must match K8S_TWD_NAME in your local .env when using demo-api status.
+  name: worker-controller-demo
+  namespace: worker-controller-demo
+spec:
+  replicas: 1
+  rollout:
+    strategy: Progressive
+    steps:
+      - rampPercentage: 25
+        pauseDuration: 60s
+      - rampPercentage: 50
+        pauseDuration: 60s
+      - rampPercentage: 75
+        pauseDuration: 60s
+    gate:
+      workflowType: RollbackWorkflow
+  sunset:
+    scaledownDelay: 60s
+    deleteDelay: 10m
+  workerOptions:
+    connectionRef:
+      name: temporal-cloud
+    temporalNamespace: YOUR_TEMPORAL_NAMESPACE
+  template:
+    metadata:
+      labels:
+        app: worker-controller-demo
+    spec:
+      containers:
+        - name: main
+          image: worker-controller-demo:v-a
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8080
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 8080
+            initialDelaySeconds: 8
+            periodSeconds: 5
+          env:
+            - name: TEMPORAL_TASK_QUEUE
+              value: worker-controller-demo
+            - name: DEMO_WORKER_VERSION
+              value: "a"
+            - name: TEMPORAL_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: temporal-api-key
+                  key: api-key
