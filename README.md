@@ -137,15 +137,15 @@ cp .env.example .env
 
 **Kubernetes access:** `demo-api` uses your **kubeconfig** (same context as `kubectl`) to read TWD status. If status stays empty, run `kubectl config current-context` and `kubectl get twd -n worker-controller-demo` from the same machine.
 
-## Run API + UI (laptop)
-
+## Run API + UI
 ```bash
-uv sync
-# Ensure .env exists and is filled out (see table above).
+$ uv sync
 
-uv run demo-api
-# other terminal:
-cd web && npm install && npm run dev
+# Run API (ensure .env is configured)
+$ uv run demo-api
+
+# Open another terminal and run UI
+$ cd web && npm install && npm run dev
 ```
 
 Open `http://localhost:5173`. The UI polls TWD status and starts scenarios **A / B / C**.
