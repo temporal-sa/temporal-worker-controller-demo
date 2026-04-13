@@ -4,6 +4,8 @@
 
 This repo shows how **[Worker Versioning](https://docs.temporal.io/worker-versioning)** and the **[Temporal Worker Controller](https://github.com/temporalio/temporal-worker-controller)** work together: a **TemporalWorkerDeployment** drives progressive rollout, optional **gate** workflows, drainage, and sunset. A small **FastAPI** service starts test workflows and reads TWD status from Kubernetes; a **Vite + React** UI runs the scenarios and mirrors rollout state.
 
+![App screenshot](images/app.png)
+
 ## Repository layout
 
 - `activity/`: `probe_version`, `slow_step`
