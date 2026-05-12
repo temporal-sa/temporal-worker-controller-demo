@@ -1,6 +1,6 @@
 .app {
   min-height: 100%;
-  max-width: 1100px;
+  max-width: 1280px;
   margin: 0 auto;
   padding: 2rem 1.5rem 4rem;
 }
@@ -153,8 +153,22 @@
 .grid {
   display: grid;
   gap: 1.25rem;
-  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
   align-items: stretch;
+  /* Clean breakpoints: 1 / 2 / 4 columns. Skip 3 so we never get a 3+1 row with
+     the last card stretched to full width. */
+  grid-template-columns: 1fr;
+}
+
+@media (min-width: 640px) {
+  .grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 1024px) {
+  .grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
 }
 
 .card {
@@ -185,10 +199,12 @@
   color: #d4d4d4;
 }
 
-/* Grow only the scenario blurb so “Use Case” lines up across cards in a row */
+/* Grow the scenario blurb so “Use Case” lines up across cards in a row; the
+   min-height keeps short descriptions from collapsing under longer ones in
+   neighboring cards. */
 .card > p:not(.rw) {
   flex: 1 1 auto;
-  min-height: 0;
+  min-height: 8.5rem;
 }
 
 .card .rw {

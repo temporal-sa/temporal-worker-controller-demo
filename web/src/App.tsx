@@ -27,8 +27,8 @@ async function fetchStatus(): Promise<DeployStatus> {
   return r.json() as Promise<DeployStatus>;
 }
 
-/** URL segment must stay a/b/c so older demo-api builds still work; current API maps to pinned/auto/rollback. */
-type ScenarioKey = "a" | "b" | "c";
+/** URL segment a/b/c/d; API maps to pinned/auto/rollback/can_demo. */
+type ScenarioKey = "a" | "b" | "c" | "d";
 
 async function runScenario(key: ScenarioKey) {
   const r = await fetch(`/api/scenarios/${key}`, {
@@ -319,6 +319,28 @@ export default function App() {
             onClick={() => onScenario("c")}
           >
             {busy === "c" ? "Starting…" : "Run scenario C"}
+          </button>
+        </article>
+
+        <article className="card">
+          <span className="tag">Scenario D</span>
+          <h3>Pinned + Continue-as-New</h3>
+          <p>
+            Pinned generation 0 probes the worker version, waits 2 minutes 30
+            seconds, then calls <code>continue_as_new</code> with auto-upgrade.
+            Generation 1 starts on whichever build is Current and finishes.
+            Workflow ids use the prefix <code>can-demo-</code>.
+          </p>
+          <p className="rw">
+            <strong>Use Case:</strong> long-running pinned jobs that need a safe
+            hand-off to a newer worker version, e.g. polling or entity workflows.
+          </p>
+          <button
+            type="button"
+            disabled={busy !== null}
+            onClick={() => onScenario("d")}
+          >
+            {busy === "d" ? "Starting…" : "Run scenario D"}
           </button>
         </article>
       </div>

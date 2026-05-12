@@ -27,6 +27,7 @@ from temporalio.common import (
 from workflows.workflow_a import PinnedDemoWorkflow
 from workflows.workflow_b import AutoUpgradeDemoWorkflow
 from workflows.workflow_c import RollbackWorkflow
+from workflows.workflow_d import PinnedCanDemoWorkflow
 
 
 def _load_kube() -> None:
@@ -237,13 +238,13 @@ async def start_scenario(
     scenario: str, tc: Client = Depends(_temporal_client)
 ) -> dict[str, str]:
     s = scenario.lower()
-    # Prefer pinned | auto | rollback in the UI (clearer than /b for proxies); keep a|b|c for scripts.
-    alias = {"a": "pinned", "b": "auto", "c": "rollback"}
+    # Prefer pinned | auto | rollback | can_demo in the UI; keep a|b|c|d for scripts.
+    alias = {"a": "pinned", "b": "auto", "c": "rollback", "d": "can_demo"}
     s = alias.get(s, s)
-    if s not in {"pinned", "auto", "rollback"}:
+    if s not in {"pinned", "auto", "rollback", "can_demo"}:
         raise HTTPException(
             status_code=400,
-            detail="scenario must be pinned, auto, rollback (or legacy a, b, c)",
+            detail="scenario must be pinned, auto, rollback, can_demo (or legacy a, b, c, d)",
         )
     task_queue = os.environ["TEMPORAL_TASK_QUEUE"]
     suffix = uuid.uuid4().hex[:8]
@@ -265,17 +266,30 @@ async def start_scenario(
             task_queue=task_queue,
         )
         return {"workflow_id": wid, "workflow_type": "AutoUpgradeDemo"}
+    if s == "can_demo":
+        # Scenario D: pinned workflow with continue-as-new. Gen 0 stays on the start
+        # build (PINNED via decorator); after a 2:30 timer the workflow continues-as-new
+        # with initial_versioning_behavior=AUTO_UPGRADE so gen 1's first task can land
+        # on whichever build is Current at that moment.
+        wid = f"can-demo-{suffix}"
+        await tc.start_workflow(
+            PinnedCanDemoWorkflow.run,
+            id=wid,
+            task_queue=task_queue,
+        )
+        return {"workflow_id": wid, "workflow_type": "PinnedCanDemo"}
+    # Scenario C: start RollbackWorkflow without pin and without execution timeout.
+    # The workflow's `versioning_behavior=AUTO_UPGRADE` means each retried workflow
+    # task is dispatched to whichever build is Current at that moment. On v-b the
+    # task fails ("class not registered") and Temporal keeps retrying with backoff.
+    # When the user rolls back to v-a, the next retry lands on v-a, the workflow
+    # finally executes, and completes — recovery without losing the workflow.
     wid = f"rollback-demo-{suffix}"
-    pin_target = await _pinned_override_from_twd_target()
-    start_kw: dict[str, Any] = {
-        "id": wid,
-        "task_queue": task_queue,
-        "execution_timeout": timedelta(seconds=60),
-        "run_timeout": timedelta(seconds=60),
-    }
-    if pin_target is not None:
-        start_kw["versioning_override"] = pin_target
-    await tc.start_workflow(RollbackWorkflow.run, **start_kw)
+    await tc.start_workflow(
+        RollbackWorkflow.run,
+        id=wid,
+        task_queue=task_queue,
+    )
     return {"workflow_id": wid, "workflow_type": "RollbackWorkflow"}
 
 

@@ -17,18 +17,29 @@ from activity.demo_activity import probe_version, slow_step
 from workflows.workflow_a import PinnedDemoWorkflow
 from workflows.workflow_b import AutoUpgradeDemoWorkflow
 from workflows.workflow_c import RollbackWorkflow, RolloutGateWorkflow
+from workflows.workflow_d import PinnedCanDemoWorkflow
 
 
 def _registered_workflows() -> list[type]:
-    """Pinned + AutoUpgrade always; omit gate workflows on v-b (DEMO_OMIT_ROLLOUT_GATE=1)."""
-    w: list[type] = [PinnedDemoWorkflow, AutoUpgradeDemoWorkflow]
-    omit = os.environ.get("DEMO_OMIT_ROLLOUT_GATE", "").strip().lower() in (
+    """Always register Pinned + AutoUpgrade + CaN demo + RolloutGate.
+
+    `DEMO_OMIT_ROLLBACK=1` omits ONLY `RollbackWorkflow` so v-b can pass the controller
+    gate (which uses `RolloutGate`) while still making Scenario C fail when pinned to a
+    v-b target ("class not registered"). v-a should always be built without the flag.
+    """
+    w: list[type] = [
+        PinnedDemoWorkflow,
+        AutoUpgradeDemoWorkflow,
+        PinnedCanDemoWorkflow,
+        RolloutGateWorkflow,
+    ]
+    omit_rollback = os.environ.get("DEMO_OMIT_ROLLBACK", "").strip().lower() in (
         "1",
         "true",
         "yes",
     )
-    if not omit:
-        w.extend((RollbackWorkflow, RolloutGateWorkflow))
+    if not omit_rollback:
+        w.append(RollbackWorkflow)
     return w
 
 
