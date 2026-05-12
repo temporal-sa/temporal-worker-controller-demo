@@ -118,11 +118,18 @@ Open **http://localhost:5173**. The top panel shows live `TemporalWorkerDeployme
 
 ### 2. Verify steady state on v-a
 
-`kubectl get twd -n worker-controller-demo` should show `CURRENT = TARGET = v-a-<hash>`, `RolloutComplete`. Click **Run scenario A**, then **B**, then **C** — all complete successfully on v-a.
+`kubectl get twd -n worker-controller-demo` should show `CURRENT = TARGET = v-a-<hash>`, `RolloutComplete`.
 
-### 3. Scenario D — pinned + continue-as-new
+### 3. Start Scenarios A and B on v-a
 
-Click **Run scenario D**. The workflow starts pinned on v-a, probes (`ok-a`), sleeps **2 minutes 30 seconds**, then calls `continue_as_new` with `initial_versioning_behavior=AUTO_UPGRADE`. **While it's sleeping**, do the rollout:
+In the UI, click **Run scenario A**, then **Run scenario B**. Both kick off on v-a:
+
+- **A** (`pinned-demo-…`): pinned to v-a; probes, sleeps ~90s, probes again.
+- **B** (`auto-demo-…`): auto-upgrade; probes (`ok-a`), sleeps 150s, probes again.
+
+Keep them running. They give the rollout something interesting to do.
+
+### 4. Roll forward to v-b and watch the ramp
 
 ```bash
 # Edit k8s/temporal-worker-deployment.yaml:
@@ -132,23 +139,35 @@ kubectl apply -f k8s/temporal-worker-deployment.yaml
 kubectl get twd -n worker-controller-demo -w
 ```
 
-The controller's `RolloutGate` workflow runs on v-b and succeeds, the ramp progresses **25% → 50% → 75% → Current**, and `CURRENT` becomes `v-b-<hash>`. When Scenario D's timer fires, gen 0 closes on v-a (`ContinuedAsNew`) and gen 1 starts on whichever build is Current now (v-b) and completes. Result: `gen=1 probe=ok-b`. You've just demonstrated a safe pinned-workflow handoff to a newer worker version.
+The controller starts a `RolloutGate` workflow on v-b → it succeeds (v-b registers `RolloutGate`) → ramp progresses **25% → 50% → 75% → Current**. While that's happening:
 
-### 4. Scenario C — fails on v-b, recovers on rollback
+- **A** stays pinned to v-a and completes there (pinned workflows never move).
+- **B** finishes its second probe on whichever build is Current at that moment. If the ramp finishes before B wakes up, result is `ok-a -> ok-b`; otherwise `ok-a -> ok-a`.
 
-With v-b now Current, click **Run scenario C**. v-b workers don't register `RollbackWorkflow` → workflow task fails repeatedly with `class not registered` (visible in Temporal Web). The workflow keeps running (no timeout). Now roll back:
+### 5. Start Scenarios C and D on v-b
+
+Once `CURRENT = v-b-<hash>`, click **Run scenario C**, then **Run scenario D**:
+
+- **C** (`rollback-demo-…`): auto-upgrade; dispatched to v-b. v-b doesn't register `RollbackWorkflow` → workflow task **fails repeatedly** with `class not registered`. The workflow stays `Running` (no timeout) and keeps retrying.
+- **D** (`can-demo-…`): pinned to v-b; probes (`ok-b`), sleeps **2 minutes 30 seconds**, then calls `continue_as_new` with `initial_versioning_behavior=AUTO_UPGRADE`.
+
+### 6. Roll back to v-a (while D is still sleeping)
 
 ```bash
-# Edit k8s/temporal-worker-deployment.yaml back to image: worker-controller-demo:v-a
-# and DEMO_WORKER_VERSION: "a"
+# Edit k8s/temporal-worker-deployment.yaml:
+#   image: worker-controller-demo:v-a
+#   DEMO_WORKER_VERSION: "a"
 kubectl apply -f k8s/temporal-worker-deployment.yaml
 ```
 
-The controller ramps Current back to v-a. The pending workflow's next workflow-task retry is auto-upgraded to v-a, runs, and the workflow completes with `ok-a`.
+The controller ramps **back to v-a** as Current.
 
-### 5. Scenario A and B during a rollout
+### 7. Observe C and D both complete on v-a
 
-Run **A** and **B** on v-a, then start a rollout to v-b mid-flight. Scenario A's pinned workflow stays on v-a until it finishes. Scenario B's auto-upgrade workflow may finish on v-b — result `ok-a -> ok-b` if v-b becomes Current during the 2:30 sleep.
+- **C** recovers: its next workflow-task retry is auto-upgraded to Current = v-a → v-a registers `RollbackWorkflow` → runs the activity → returns **`ok-a`** → `Completed`. The workflow was never lost.
+- **D** hands off: when its 2:30 timer fires, gen 0 closes on v-b (`ContinuedAsNew`); gen 1 starts with `AUTO_UPGRADE` and lands on Current = v-a → probes → returns **`gen=1 probe=ok-a`** → `Completed`. A pinned workflow safely moved from v-b to v-a at the CaN boundary.
+
+You've now seen all four behaviors in one continuous flow: **pinned (A) stays put**, **auto-upgrade (B) moves**, **a missing workflow type on v-b (C) blocks until rollback then recovers**, and **continue-as-new with AUTO_UPGRADE (D) hands off to whichever build is Current at the boundary**.
 
 ## Reset when things get stuck
 
