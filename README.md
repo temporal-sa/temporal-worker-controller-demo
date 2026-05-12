@@ -18,20 +18,15 @@ You'll see how four common workflow shapes behave during a rolling upgrade from 
 | Docker (Rancher Desktop recommended) | Build `worker-controller-demo:v-a` / `:v-b` images |
 | Kubernetes (Rancher Desktop, kind, k3d, etc.) | Runs the controller + worker pods |
 | `kubectl` | Apply manifests, watch state |
-| Helm 3 | Install cert-manager + the worker controller |
+| Helm 3 | Install the worker controller |
 | Temporal Cloud account (or self-hosted ≥ 1.29.1) | Worker Versioning enabled |
 | `uv` (Python) and `Node.js` + `npm` | Run the demo API and UI on your laptop |
 
 ## Setup (one-time)
 
-### 1. Install cert-manager and the worker controller
+### 1. Install the worker controller
 
 ```bash
-# cert-manager (TLS for the controller's admission webhook)
-helm repo add jetstack https://charts.jetstack.io --force-update
-helm install cert-manager jetstack/cert-manager \
-  --namespace cert-manager --create-namespace --set crds.enabled=true
-
 # Worker controller CRDs + chart (pick a release from
 # https://github.com/temporalio/temporal-worker-controller/releases)
 helm install temporal-worker-controller-crds \
@@ -42,9 +37,11 @@ helm install temporal-worker-controller \
   oci://docker.io/temporalio/temporal-worker-controller \
   --version <VERSION> --namespace temporal-system
 
-# Sanity check
+# Sanity check — both controller pods should be Running
 kubectl get pods -n temporal-system
 ```
+
+> **cert-manager?** Not needed for this demo. The controller's optional admission webhook (used by `WorkerResourceTemplate`) is the only thing that wants TLS, and we don't use it. If a future upgrade prompts a webhook error, install [cert-manager](https://cert-manager.io/) then.
 
 ### 2. Create the demo namespace and your Temporal Cloud API key Secret
 
